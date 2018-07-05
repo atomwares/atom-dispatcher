@@ -7,12 +7,12 @@
 
 namespace Atom\Dispatcher;
 
-use Atom\Http\Middleware\Delegate;
 use Atom\Interfaces\DispatcherInterface;
-use Interop\Http\ServerMiddleware\DelegateInterface;
-use Interop\Http\ServerMiddleware\MiddlewareInterface;
+use Atom\Http\Server\RequestHandler;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * Class Dispatcher
@@ -27,13 +27,18 @@ class Dispatcher implements DispatcherInterface
     protected $middleware = [];
 
     /**
+     * @var RequestHandlerInterface
+     */
+    protected $fallbackHandler;
+
+    /**
      * Dispatcher constructor.
      *
-     * @param MiddlewareInterface|MiddlewareInterface[]|callable|callable[] $middleware
+     *  @param RequestHandlerInterface $fallbackHandler
      */
-    public function __construct($middleware = [])
+    public function __construct($fallbackHandler)
     {
-        $this->set($middleware);
+        $this->fallbackHandler = $fallbackHandler;
     }
 
     /**
@@ -73,26 +78,24 @@ class Dispatcher implements DispatcherInterface
 
     /**
      * @param ServerRequestInterface $request
-     * @param DelegateInterface $delegate
-     *
+     * @param RequestHandlerInterface $handler
      * @return ResponseInterface
      */
-    public function process(ServerRequestInterface $request, DelegateInterface $delegate)
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         while ($middleware = array_pop($this->middleware)) {
-            $delegate = new Delegate($middleware, $delegate);
+            $handler = new RequestHandler($middleware, $handler);
         }
 
-        return $delegate->process($request);
+        return $handler->handle($request);
     }
 
     /**
      * @param ServerRequestInterface $request
-     *
      * @return ResponseInterface
      */
-    public function dispatch(ServerRequestInterface $request)
+    public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        return $this->process($request, new Delegate());
+        return $this->process($request, $this->fallbackHandler);
     }
 }
